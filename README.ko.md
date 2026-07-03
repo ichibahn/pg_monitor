@@ -176,7 +176,7 @@ PostgreSQL Major Version: 17 (RDS)
 - 22) TOP 30 Queries : 누적시간 상위 30개 쿼리 (pg_stat_statements 익스텐션 必, 미설치 시 설치 안내 출력)
 - 23) Transaction Stat By Database : 각 Database 별 stat (+ temp 파일, deadlock)
 - 24) Unused Indexes : 미사용 인덱스 (stats reset 이후 기준)
-- 25) HOT Update Ratio : 테이블별 HOT update 비율 + 원인 기반 진단(`hot_diagnosis`). 판정 기준 — 업데이트 1,000건 미만: `- (too few updates)`(표본 부족) / 비율 20% 이상: `OK` / 비율 20% 미만 & fillfactor=100: `candidate: lower fillfactor` / 비율 20% 미만 & fillfactor<100: `check indexed-column updates`(이미 fillfactor를 낮췄는데도 낮으면 인덱스 컬럼 업데이트가 원인). HOT는 ①인덱스 컬럼 미변경 ②페이지 여유공간 두 조건이 모두 필요하며 fillfactor는 ②만 해결합니다
+- 25) HOT Update Ratio : 테이블별 HOT update 비율 + 원인 기반 진단(`hot_diagnosis`). 판정은 `LEVEL: 조건 (조치)` 통일 포맷 — `SKIP: updates < 1000 (too few to judge)` 표본 부족 / `OK: ratio >= 20%` / `WARN: ratio < 20%, ff = 100 (try lowering fillfactor)` / `WARN: ratio < 20%, ff < 100 (check indexed-column updates)` 이미 fillfactor를 낮췄는데도 낮으면 인덱스 컬럼 업데이트가 원인. HOT는 ①인덱스 컬럼 미변경 ②페이지 여유공간 두 조건이 모두 필요하며 fillfactor는 ②만 해결합니다
 - 26) Index Bloat Estimate : B-tree 인덱스 bloat 추정 (pgstattuple 불필요)
 - 27) Duplicate Indexes : 정의가 동일한 중복 인덱스
 - 28) Foreign Keys Without Index : 인덱스 없는 FK (락/삭제 성능 사고 예방)

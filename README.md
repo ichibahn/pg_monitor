@@ -164,7 +164,7 @@ A user with the `pg_monitor` role (PG10+) can run every read-only item; `8x` act
 | 22 | TOP 30 Queries | needs `pg_stat_statements`; prints install guide if missing |
 | 23 | Transaction Stat By Database | commits/rollbacks/IO + temp files, deadlocks |
 | 24 | Unused Indexes | `idx_scan = 0` since stats reset |
-| 25 | HOT Update Ratio | per-table HOT ratio with a cause-aware `hot_diagnosis`: `< 1000 updates` → too few to judge; `ratio ≥ 20%` → OK; `ratio < 20% & fillfactor = 100` → candidate to lower fillfactor; `ratio < 20% & fillfactor < 100` → fillfactor already lowered, check indexed-column updates (HOT requires both a non-indexed-column UPDATE **and** free space in the page — fillfactor only fixes the latter) |
+| 25 | HOT Update Ratio | per-table HOT ratio with a cause-aware `hot_diagnosis` in a uniform `LEVEL: condition (action)` format — `SKIP: updates < 1000 (too few to judge)` / `OK: ratio >= 20%` / `WARN: ratio < 20%, ff = 100 (try lowering fillfactor)` / `WARN: ratio < 20%, ff < 100 (check indexed-column updates)`. HOT requires both a non-indexed-column UPDATE **and** free space in the page — fillfactor only fixes the latter |
 | 26 | Index Bloat Estimate | statistics-based estimation (no pgstattuple) |
 | 27 | Duplicate Indexes | identical column/opclass/predicate definitions |
 | 28 | Foreign Keys Without Index | lock/seq-scan accident prevention |

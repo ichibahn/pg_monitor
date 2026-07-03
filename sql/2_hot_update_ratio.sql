@@ -6,11 +6,11 @@
 \qecho Lowering fillfactor only helps (2). If the ratio stays low even with
 \qecho a lowered fillfactor, the cause is usually (1) - indexed-column updates.
 \qecho
-\qecho hot_diagnosis criteria:
-\qecho   updates < 1000                  -> '- (too few updates)'
-\qecho   ratio >= 20%                    -> 'OK'
-\qecho   ratio < 20%, fillfactor = 100   -> 'candidate: lower fillfactor'
-\qecho   ratio < 20%, fillfactor < 100   -> 'check indexed-column updates'
+\qecho hot_diagnosis format: LEVEL: condition (action)
+\qecho   SKIP: updates < 1000 (too few to judge)
+\qecho   OK:   ratio >= 20%
+\qecho   WARN: ratio < 20%, ff = 100 (try lowering fillfactor)
+\qecho   WARN: ratio < 20%, ff < 100 (check indexed-column updates)
 \qecho ----------------------------------------------------------------------
 SELECT
     s.schemaname,
@@ -22,11 +22,11 @@ SELECT
     s.n_tup_del AS deletes,
     COALESCE((regexp_match(c.reloptions::text, 'fillfactor=(\d+)'))[1]::integer, 100) AS current_fillfactor,
     CASE
-        WHEN s.n_tup_upd < 1000 THEN '- (too few updates)'
-        WHEN s.n_tup_hot_upd * 100.0 / s.n_tup_upd >= 20 THEN 'OK'
+        WHEN s.n_tup_upd < 1000 THEN 'SKIP: updates < 1000 (too few to judge)'
+        WHEN s.n_tup_hot_upd * 100.0 / s.n_tup_upd >= 20 THEN 'OK: ratio >= 20%'
         WHEN COALESCE((regexp_match(c.reloptions::text, 'fillfactor=(\d+)'))[1]::integer, 100) = 100
-            THEN 'candidate: lower fillfactor'
-        ELSE 'low HOT despite fillfactor - check indexed-column updates'
+            THEN 'WARN: ratio < 20%, ff = 100 (try lowering fillfactor)'
+        ELSE 'WARN: ratio < 20%, ff < 100 (check indexed-column updates)'
     END AS hot_diagnosis
 FROM
     pg_stat_user_tables s
