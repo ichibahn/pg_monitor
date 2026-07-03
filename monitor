@@ -123,6 +123,12 @@ check_psql_installed() {
 
 # Configuration --------------------------------
 setup_environment() {
+  # Never open a pager (less) for wide/long results - print inline so every
+  # item ends with a single "Press Enter" instead of q + Enter.
+  # PSQL_PAGER: psql 11+ / PAGER: fallback for older psql clients.
+  export PSQL_PAGER=cat
+  export PAGER=cat
+
   if [ -z "$PG_MONITOR_PATH" ]; then
     MONITOR=$HOME/pg_monitor
   else
