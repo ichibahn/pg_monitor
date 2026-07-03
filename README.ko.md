@@ -167,77 +167,95 @@ PostgreSQL Major Version: 17 (RDS)
 판정 컬럼이 있는 항목(**25, 52, 65, 73**)은 전부 **`LEVEL: 조건 (조치)`** 통일 포맷을 씁니다 — 레벨 4단계: `OK`(정상) / `WARN`(주의) / `CRIT`(즉시 조치) / `SKIP`(데이터 부족·해당 없음). 조건에는 걸린 임계치가, 괄호에는 취할 조치가 명시됩니다.
 
 ### 1. GENERAL
-- 11) Cluster/Instance Info : 접속한 PostgreSQL 정보 (버전/가동시간/인코딩/TZ/Primary·Standby 역할/최대 XID age)
-- 12) Modified Parameter : 기본값 대비 변경된 파라미터 (pending_restart 포함)
-- 13) Database Info : 각 Database 별 정보
-- 14) User Privilege (Database) : 유저에 대한 database 권한
-- 15) User Privilege (Schema) : 유저에 대한 schema 권한 (현재 접속 DB 기준)
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 11 | Cluster/Instance Info | 접속한 PostgreSQL 정보 (버전/가동시간/인코딩/TZ/Primary·Standby 역할/최대 XID age) |
+| 12 | Modified Parameter | 기본값 대비 변경된 파라미터 (pending_restart 포함) |
+| 13 | Database Info | 각 Database 별 정보 |
+| 14 | User Privilege (Database) | 유저에 대한 database 권한 |
+| 15 | User Privilege (Schema) | 유저에 대한 schema 권한 (현재 접속 DB 기준) |
 
 ### 2. PERFORMANCE METRICS
-- 21) Buffer Cache Hit Ratio : Buffer Cache Hit율 (pg_stat_database 기반 — 익스텐션 불필요)
-- 22) TOP 30 Queries : 누적시간 상위 30개 쿼리 (pg_stat_statements 익스텐션 必, 미설치 시 설치 안내 출력)
-- 23) Transaction Stat By Database : 각 Database 별 stat (+ temp 파일, deadlock)
-- 24) Unused Indexes : 미사용 인덱스 (stats reset 이후 기준)
-- 25) HOT Update Ratio : 테이블별 HOT update 비율 + 원인 기반 진단(`hot_diagnosis`). 판정은 `LEVEL: 조건 (조치)` 통일 포맷 — `SKIP: updates < 1000 (too few to judge)` 표본 부족 / `OK: ratio >= 20%` / `WARN: ratio < 20%, ff = 100 (try lowering fillfactor)` / `WARN: ratio < 20%, ff < 100 (check indexed-column updates)` 이미 fillfactor를 낮췄는데도 낮으면 인덱스 컬럼 업데이트가 원인. HOT는 ①인덱스 컬럼 미변경 ②페이지 여유공간 두 조건이 모두 필요하며 fillfactor는 ②만 해결합니다
-- 26) Index Bloat Estimate : B-tree 인덱스 bloat 추정 (pgstattuple 불필요)
-- 27) Duplicate Indexes : 정의가 동일한 중복 인덱스
-- 28) Foreign Keys Without Index : 인덱스 없는 FK (락/삭제 성능 사고 예방)
-- 29) I/O Statistics : pg_stat_io 요약 (PG16+, 미만 버전은 안내)
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 21 | Buffer Cache Hit Ratio | Buffer Cache Hit율 (pg_stat_database 기반 — 익스텐션 불필요) |
+| 22 | TOP 30 Queries | 누적시간 상위 30개 쿼리 (pg_stat_statements 익스텐션 必, 미설치 시 설치 안내 출력) |
+| 23 | Transaction Stat By Database | 각 Database 별 stat (+ temp 파일, deadlock) |
+| 24 | Unused Indexes | 미사용 인덱스 (stats reset 이후 기준) |
+| 25 | HOT Update Ratio | 테이블별 HOT update 비율 + 원인 기반 진단(`hot_diagnosis`) — `SKIP: updates < 1000 (too few to judge)` 표본 부족 / `OK: ratio >= 20%` / `WARN: ratio < 20%, ff = 100 (try lowering fillfactor)` / `WARN: ratio < 20%, ff < 100 (check indexed-column updates)`. HOT는 (1) 인덱스 컬럼 미변경, (2) 페이지 여유공간 두 조건이 모두 필요하며 fillfactor는 (2)만 해결 |
+| 26 | Index Bloat Estimate | B-tree 인덱스 bloat 추정 (pgstattuple 불필요) |
+| 27 | Duplicate Indexes | 정의가 동일한 중복 인덱스 |
+| 28 | Foreign Keys Without Index | 인덱스 없는 FK (락/삭제 성능 사고 예방) |
+| 29 | I/O Statistics | pg_stat_io 요약 (PG16+, 미만 버전은 안내) |
 
 ### 3. SESSION / QUERY ACTIVITY
-- 31) Active Sessions : 활성 세션 조회
-- 32) Long Running Queries/Transactions : 5분 초과 쿼리 + 15분 초과 열린 트랜잭션 (vacuum 지연 원인 탐지)
-- 33) Blocking Sessions : Blocking & Blocked 세션 조회
-- 34) Wait Event (Type) : wait event 별 그룹핑 + 샘플 쿼리
-- 35) Idle (in Transaction) Sessions : idle / idle in transaction 세션 조회
-- 36) Lock Wait Tree : pg_blocking_pids 기반 락 대기 트리 (루트 blocker 우선)
-- 37) Prepared Transactions (2PC) : 잔존 2PC 트랜잭션 (락/vacuum 홀드 탐지)
-- 38) Parallel Query Workers : PG 네이티브 병렬쿼리 실행 현황 (Aurora "Parallel Query"는 MySQL 전용)
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 31 | Active Sessions | 활성 세션 조회 |
+| 32 | Long Running Queries/Transactions | 5분 초과 쿼리 + 15분 초과 열린 트랜잭션 (vacuum 지연 원인 탐지) |
+| 33 | Blocking Sessions | Blocking & Blocked 세션 조회 |
+| 34 | Wait Event (Type) | wait event 별 그룹핑 + 샘플 쿼리 |
+| 35 | Idle (in Transaction) Sessions | idle / idle in transaction 세션 조회 |
+| 36 | Lock Wait Tree | pg_blocking_pids 기반 락 대기 트리 (루트 blocker 우선) |
+| 37 | Prepared Transactions (2PC) | 잔존 2PC 트랜잭션 (락/vacuum 홀드 탐지) |
+| 38 | Parallel Query Workers | PG 네이티브 병렬쿼리 실행 현황 (Aurora "Parallel Query"는 MySQL 전용) |
 
 ### 4. SEGMENT & OBJECT INFO
-- 41) Table Size/Rows : 테이블 별 size, rows 상위 50개
-- 42) Index Size/Rows : 인덱스 별 size, rows 상위 50개
-- 43) Tablespace Size : tablespace 사용 용량 및 경로
-- 44) Table Detail Info : 특정 테이블의 상세 정보 (값 입력형; 파티션 루트는 자식 합산 크기 표시)
-- 45) Partition Table Info : 파티션 테이블 hierarchy (파티션별 크기 포함)
-- 46) Table Padding Info : 컬럼 순서에 따른 Padding 정보와 컬럼 순서 권고 (값 입력형)
-- 47) Table Bloat Estimate : 테이블 bloat 추정 (pgstattuple 불필요)
-- 48) TOAST Size Info : 테이블별 TOAST 크기 상세
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 41 | Table Size/Rows | 테이블 별 size, rows 상위 50개 |
+| 42 | Index Size/Rows | 인덱스 별 size, rows 상위 50개 |
+| 43 | Tablespace Size | tablespace 사용 용량 및 경로 |
+| 44 | Table Detail Info | 특정 테이블의 상세 정보 (값 입력형; 파티션 루트는 자식 합산 크기 표시) |
+| 45 | Partition Table Info | 파티션 테이블 hierarchy (파티션별 크기 포함) |
+| 46 | Table Padding Info | 컬럼 순서에 따른 Padding 정보와 컬럼 순서 권고 (값 입력형) |
+| 47 | Table Bloat Estimate | 테이블 bloat 추정 (pgstattuple 불필요) |
+| 48 | TOAST Size Info | 테이블별 TOAST 크기 상세 |
 
 ### 5. WAL & ARCHIVE
-- 51) Wal Status : wal 파일 상태/생성 지연 (Aurora는 안내 메시지)
-- 52) Archive Status : archive 상태/정보 + 판정 — `OK` 정상 아카이빙 / `WARN` 마지막 실패가 마지막 성공보다 최신 / `CRIT` 성공 이력 없이 실패만 존재 / `SKIP` 아카이브 이력 없음(archive_mode off 등)
-- 53) Wal / Archive Setting : wal, archive 관련 파라미터
-- 54) Checkpoint Statistics : 체크포인트 통계 (PG17+ pg_stat_checkpointer / 이하 pg_stat_bgwriter 자동 분기)
-- 55) WAL Generation Stat : WAL 생성량 (PG14+ pg_stat_wal; Aurora는 안내 메시지)
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 51 | Wal Status | WAL 디렉토리 총량 요약 + 최근 50개 파일 (Aurora는 안내 메시지) |
+| 52 | Archive Status | archive 상태/정보 + 판정 — `OK` 정상 아카이빙 / `WARN` 마지막 실패가 마지막 성공보다 최신 / `CRIT` 성공 이력 없이 실패만 존재 / `SKIP` 아카이브 이력 없음(archive_mode off 등) |
+| 53 | Wal / Archive Setting | wal, archive 관련 파라미터 |
+| 54 | Checkpoint Statistics | 체크포인트 통계 (PG17+ pg_stat_checkpointer / 이하 pg_stat_bgwriter 자동 분기) |
+| 55 | WAL Generation Stat | WAL 생성량 (PG14+ pg_stat_wal; Aurora는 안내 메시지) |
 
 ### 6. VACUUM
-- 61) Vacuuming Sessions : vacuum 수행중인 세션
-- 62) DeadTuple Ratio : dead tuple 상위 50개 테이블
-- 63) Vacuum Eligible Tables : 현재 설정 기준 vacuum 대상 테이블 (테이블별 reloption 반영)
-- 64) Vacuum Phase Info : vacuum 진행률
-- 65) Vacuum Freeze Warning : relfrozenxid age 판정 — `CRIT` autovacuum_freeze_max_age의 100% 이상(즉시 VACUUM FREEZE) / `WARN` 50% 이상(vacuum window 계획) / `OK` 50% 미만
-- 66) Vacuum Setting (Database) : database 별 vacuum 세팅
-- 67) Vacuum Setting (Parameter) : vacuum 파라미터
-- 68) Tables Not Vacuumed Recently : 7일+ (auto)vacuum/analyze 미수행 테이블
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 61 | Vacuuming Sessions | vacuum 수행중인 세션 |
+| 62 | DeadTuple Ratio | dead tuple 상위 50개 테이블 |
+| 63 | Vacuum Eligible Tables | 현재 설정 기준 vacuum 대상 테이블 (테이블별 reloption 반영) |
+| 64 | Vacuum Phase Info | vacuum 진행률 |
+| 65 | Vacuum Freeze Warning | relfrozenxid age 판정 — `CRIT` autovacuum_freeze_max_age의 100% 이상(즉시 VACUUM FREEZE) / `WARN` 50% 이상(vacuum window 계획) / `OK` 50% 미만 |
+| 66 | Vacuum Setting (Database) | database 별 vacuum 세팅 |
+| 67 | Vacuum Setting (Parameter) | vacuum 파라미터 |
+| 68 | Tables Not Vacuumed Recently | 7일+ (auto)vacuum/analyze 미수행 테이블 |
 
 ### 7. REPLICATION
-- 71) Replication Status (Primary) : 복제 상태 — **Aurora 접속 시 aurora_replica_status()로 자동 전환**
-- 72) Replication Status (Standby) : standby 수신 상태 — **Aurora 접속 시 자동 전환 + 접속 인스턴스 식별**
-- 73) Replication Slot Status : replication slot 상태 (physical slot NULL 안전 처리) + 판정 — `CRIT` wal_status lost/unreserved(필요 WAL 제거됨) / `WARN` 비활성 슬롯 또는 extended / `OK` reserved
-- 74) Logical Replication Status : publication / subscription / worker 상태
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 71 | Replication Status (Primary) | 복제 상태 — **Aurora 접속 시 aurora_replica_status()로 자동 전환** |
+| 72 | Replication Status (Standby) | standby 수신 상태 — **Aurora 접속 시 자동 전환 + 접속 인스턴스 식별** |
+| 73 | Replication Slot Status | replication slot 상태 (physical slot NULL 안전 처리) + 판정 — `CRIT` wal_status lost/unreserved(필요 WAL 제거됨) / `WARN` 비활성 슬롯 또는 extended / `OK` reserved |
+| 74 | Logical Replication Status | publication / subscription / worker 상태 |
 
 ### 8. URGENT ACTION (주의!)
-- 81) Session KILL : 세션 종료 (pid 입력형)
-- 82) Disable Autovacuum : 테이블 단위 autovacuum off (standby에서는 안내)
-- 83) Query Cancel : 쿼리만 취소, 세션 유지 — 81보다 안전한 선행 수단 (pid 입력형)
-- 84) Kill Idle-in-Transaction Sessions : N분 초과 idle-in-tx 일괄 종료 (대상 미리보기 → 확인 후 실행)
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 81 | Session KILL | 세션 종료 (pid 입력형) |
+| 82 | Disable Autovacuum | 테이블 단위 autovacuum off (standby에서는 안내) |
+| 83 | Query Cancel | 쿼리만 취소, 세션 유지 — 81보다 안전한 선행 수단 (pid 입력형) |
+| 84 | Kill Idle-in-Transaction Sessions | N분 초과 idle-in-tx 일괄 종료 (대상 미리보기 → 확인 후 실행) |
 
 ### 9. CLOUD (RDS/AURORA 전용)
-- 91) Cloud Env Info : 엔진 감지, aurora_version, 접속 인스턴스(writer/reader), rds.* 파라미터, rds_superuser 여부
-- 92) Aurora Global DB Status : 리전 간 durability/RPO lag
-- 93) Aurora Memory Usage : 백엔드별 메모리 컨텍스트 (OOM 트러블슈팅)
-- 94) DB Log Files (log_fdw) : SQL로 DB 로그 파일 조회 — log_fdw 미설치 시 설치 안내 (**익스텐션은 DB별 설치**)
+| 메뉴 | 항목 | 설명 |
+|---|---|---|
+| 91 | Cloud Env Info | 엔진 감지, aurora_version, 접속 인스턴스(writer/reader), 핵심 클라우드 설정, rds_superuser 여부 |
+| 92 | Aurora Global DB Status | 리전 간 durability/RPO lag |
+| 93 | Aurora Memory Usage | 백엔드별 메모리 컨텍스트 (OOM 트러블슈팅) |
+| 94 | DB Log Files (log_fdw) | SQL로 DB 로그 파일 조회 — log_fdw 미설치 시 설치 안내 (**익스텐션은 DB별 설치**) |
 
 vanilla PostgreSQL에서 9번대를 실행하면 "클라우드 전용" 안내와 대체 메뉴를 알려줍니다 (raw 에러 없음).
 
