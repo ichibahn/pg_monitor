@@ -1,0 +1,856 @@
+#------------------------------------------------------------------------
+# Created By Jihyun Bahn
+# Ver 1.1.0 2026-07-02 : Add 14 new checks (bloat, FK index, lock tree,
+#                        checkpoint, WAL generation, logical replication,
+#                        cancel query, idle-in-tx cleanup, ...),
+#                        fix report menu, harden shell quoting
+# Ver 1.0.1 2025-10-15 : Add Table Padding Info
+#
+#------------------------------------------------------------------------
+
+# Message Functions -----------------------------
+print_done() {
+  echo "Press Enter Key to continue..."
+  read
+}
+
+print_version() {
+  echo "================================"
+  echo " PostgreSQL Monitor Ver1.1.0 "
+  echo "================================"
+}
+
+print_warning() {
+  echo "=================================================="
+  echo " (Disclaimer)                                     "
+  echo " These scripts come without warranty of any kind. "
+  echo " Use them at your own risk.                       "
+  echo "=================================================="
+}
+
+# Input PostgreSQL Connection Details -----------
+input_connection() {
+  echo
+  echo -n "Enter PostgreSQL Host (default: localhost): "
+  read PG_HOST
+  PG_HOST=${PG_HOST:-localhost}
+
+  echo -n "Enter PostgreSQL Port (default: 5432): "
+  read PG_PORT
+  PG_PORT=${PG_PORT:-5432}
+
+  echo -n "Enter PostgreSQL Database (default: postgres): "
+  read PG_DB
+  PG_DB=${PG_DB:-postgres}
+
+  echo -n "Enter PostgreSQL User (default: postgres): "
+  read PG_USER
+  PG_USER=${PG_USER:-postgres}
+
+  echo -n "Enter PostgreSQL Password: "
+  read -s PG_PASS
+  echo
+}
+
+# Check PostgreSQL Version ----------------------
+pg_version_check() {
+  PG_VERSION_NUM=$(PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -t -A -c "SHOW server_version_num;" 2>/dev/null)
+  if [ -z "$PG_VERSION_NUM" ]; then
+    echo
+    echo "ERROR: could not connect to PostgreSQL ($PG_HOST:$PG_PORT/$PG_DB as $PG_USER)."
+    echo "Check host/port/database/user/password and try again."
+    exit 1
+  fi
+  PG_VERSION=$((PG_VERSION_NUM / 10000))
+  PG_ENV=$(PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -t -A -c \
+    "SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_settings WHERE name LIKE 'apg%') THEN 'Aurora'
+                 WHEN EXISTS (SELECT 1 FROM pg_settings WHERE name LIKE 'rds.%') THEN 'RDS'
+                 ELSE 'Vanilla' END;" 2>/dev/null)
+  PG_ENV=${PG_ENV:-Vanilla}
+  echo "PostgreSQL Major Version: $PG_VERSION ($PG_ENV)"
+  echo
+}
+
+# Run SQL Query --------------------------------
+run_sql() {
+  local sql_file=$1
+  PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -f "$MONITOR/sql/$sql_file"
+  echo
+}
+
+# Run SQL for a specific table (prompts for table name) ----
+# Usage: run_sql_for_table <sql_file>  -> returns 1 if no input
+read_table_name() {
+  echo "Enter table name (e.g., public.mytable or mytable) and press Enter :"
+  read TB_NAME
+  if [ -z "$TB_NAME" ]; then
+    echo "Error: Table name cannot be empty."
+    return 1
+  fi
+  if [[ "$TB_NAME" != *"."* ]]; then
+      SCHEMA_NAME="public"
+      FULL_TABLE_NAME="public.$TB_NAME"
+  else
+      SCHEMA_NAME=$(echo "$TB_NAME" | cut -d'.' -f1)
+      FULL_TABLE_NAME="$TB_NAME"
+      TB_NAME=$(echo "$TB_NAME" | cut -d'.' -f2)
+  fi
+  return 0
+}
+
+run_sql_for_table() {
+  local sql_file=$1
+  PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q \
+    -v SCHEMA_NAME="$SCHEMA_NAME" -v TB_NAME="$TB_NAME" -v FULL_TABLE_NAME="$FULL_TABLE_NAME" \
+    -f "$MONITOR/sql/$sql_file"
+  echo
+}
+
+# Check psql client is installed ----------------
+check_psql_installed() {
+  if ! command -v psql >/dev/null 2>&1; then
+    echo
+    echo "ERROR: 'psql' (PostgreSQL client) is not installed or not in PATH."
+    echo
+    echo "Install it first:"
+    echo "  Ubuntu/Debian : sudo apt install postgresql-client"
+    echo "  RHEL/Rocky    : sudo dnf install postgresql"
+    echo "  macOS (brew)  : brew install libpq && brew link --force libpq"
+    echo
+    exit 1
+  fi
+}
+
+# Configuration --------------------------------
+setup_environment() {
+  if [ -z "$PG_MONITOR_PATH" ]; then
+    MONITOR=$HOME/pg_monitor
+  else
+    MONITOR=$PG_MONITOR_PATH
+  fi
+  export MONITOR
+  if [ ! -f "$MONITOR/sql/1_instance.sql" ]; then
+    echo
+    echo "ERROR: SQL scripts not found at: $MONITOR/sql"
+    echo
+    echo "Extract the package to \$HOME (default), or point PG_MONITOR_PATH"
+    echo "to the extracted pg_monitor directory, e.g.:"
+    echo "  PG_MONITOR_PATH=/opt/pg_monitor bash /opt/pg_monitor/monitor"
+    echo
+    exit 1
+  fi
+  mkdir -p "$MONITOR/log"
+}
+
+# Main Script ----------------------------------
+if [ $# -ne 0 ]; then
+  echo
+  echo " PostgreSQL Monitor Shell"
+  echo " -----------------------"
+  echo " Usage: $0 "
+  echo
+  exit 1
+fi
+
+# Initialize Environment
+check_psql_installed
+setup_environment
+clear
+print_version
+print_warning
+
+# Get Connection Details
+input_connection
+pg_version_check
+
+# Main Menu Loop
+while true; do
+  clear
+  print_version
+  echo "  PostgreSQL Version: $PG_VERSION | Environment: $PG_ENV"
+  echo "  Host: $PG_HOST | Port: $PG_PORT | Database: $PG_DB | User: $PG_USER"
+  echo " ---------------------------------------------------------------------------------------"
+  echo " 1. GENERAL                                 | 2. PERFORMANCE METRICS                    "
+  echo " ------------------------------------------ + ------------------------------------------"
+  echo "  11 - Cluster/Instance Info                |  21 - Buffer Cache Hit Ratio              "
+  echo "  12 - Modified Parameter                   |  22 - TOP 30 Queries (pg_stat_statements) "
+  echo "  13 - Database Info                        |  23 - Transaction Stat By Database        "
+  echo "  14 - User Privilege (Database)            |  24 - Unused Indexes                      "
+  echo "  15 - User Privilege (Schema)              |  25 - HOT Update Ratio                    "
+  echo "                                            |  26 - Index Bloat Estimate                "
+  echo "                                            |  27 - Duplicate Indexes                   "
+  echo "                                            |  28 - Foreign Keys Without Index          "
+  echo "                                            |  29 - I/O Statistics (PG16+)              "
+  echo " ---------------------------------------------------------------------------------------"
+  echo " 3. SESSION / QUERY ACTIVITY                | 4. SEGMENT & OBJECT INFO                  "
+  echo " ------------------------------------------ + ------------------------------------------"
+  echo "  31 - Active Sessions                      |  41 - Table Size/Rows                     "
+  echo "  32 - Long Running Queries/Transactions    |  42 - Index Size/Rows                     "
+  echo "  33 - Blocking / Blocked Sessions          |  43 - Tablespace Size                     "
+  echo "  34 - Wait Event (Type)                    |  44 - Table Detail Info                   "
+  echo "  35 - Idle (in Transaction) Sessions       |  45 - Partition Table Info                "
+  echo "  36 - Lock Wait Tree                       |  46 - Table Padding Info                  "
+  echo "  37 - Prepared Transactions (2PC)          |  47 - Table Bloat Estimate                "
+  echo "  38 - Parallel Query Workers               |  48 - TOAST Size Info                     "
+  echo " ---------------------------------------------------------------------------------------"
+  echo " 5. WAL & ARCHIVE                           | 6. VACUUM                                 "
+  echo " ------------------------------------------ + ------------------------------------------"
+  echo "  51 - Wal Status                           |  61 - Vacuuming Sessions                  "
+  echo "  52 - Archive Status                       |  62 - DeadTuple Ratio                     "
+  echo "  53 - Wal / Archive Setting (Parameter)    |  63 - Vacuum Eligible Tables              "
+  echo "  54 - Checkpoint Statistics                |  64 - Vacuum Phase Info                   "
+  echo "  55 - WAL Generation Stat (PG14+)          |  65 - Vacuum Freeze Warning               "
+  echo "                                            |  66 - Vacuum Setting (Database)           "
+  echo "                                            |  67 - Vacuum Setting (Parameter)          "
+  echo "                                            |  68 - Tables Not Vacuumed Recently        "
+  echo " ---------------------------------------------------------------------------------------"
+  echo " 7. REPLICATION                             | 8. URGENT ACTION (CAUTION!)               "
+  echo " ------------------------------------------ + ------------------------------------------"
+  echo "  71 - Replication Status (Primary)         |  81 - Session KILL (terminate)            "
+  echo "  72 - Replication Status (Standby)         |  82 - Disable Autovacuum (Table)          "
+  echo "  73 - Replication Slot Status              |  83 - Query Cancel (safer than KILL)      "
+  echo "  74 - Logical Replication Status           |  84 - Kill Idle-in-Transaction Sessions   "
+  echo " ---------------------------------------------------------------------------------------"
+  echo " 9. CLOUD (RDS/AURORA ONLY)                 | 0. OTHER                                  "
+  echo " ------------------------------------------ + ------------------------------------------"
+  echo "  91 - Cloud Env Info        [RDS/Aurora]   |  S - Save Report to File                  "
+  echo "  92 - Aurora Global DB Status [Aurora]     |  X or Q - EXIT                            "
+  echo "  93 - Aurora Memory Usage   [Aurora]       |                                           "
+  echo "  94 - DB Log Files (log_fdw) [RDS/Aurora]  |                                           "
+  echo " ---------------------------------------------------------------------------------------"
+  echo
+  echo -n " Choose the Number or Command: "
+  read i_number
+
+  case $i_number in
+    # 1. GENERAL ---------------------------------------
+    11)
+      clear
+      echo "=================================="
+      echo " PostgreSQL Cluster/Instance Info "
+      echo "=================================="
+      run_sql 1_instance.sql
+      print_done
+      ;;
+
+    12)
+      clear
+      echo "======================"
+      echo " Modified Parameter "
+      echo "======================"
+      run_sql 1_modified_parameters.sql
+      print_done
+      ;;
+
+    13)
+      clear
+      echo "====================="
+      echo " List Of Databases"
+      echo "====================="
+      PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -c "\list"
+      print_done
+      ;;
+
+    14)
+      clear
+      echo "======================="
+      echo " List of Users "
+      echo "======================="
+      PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -c "\du"
+      echo " "
+      echo "================================="
+      echo " User Privileges On Database "
+      echo "================================="
+      run_sql 1_user_info_database.sql
+      print_done
+      ;;
+
+    15)
+      clear
+      echo "======================="
+      echo " List of Users "
+      echo "======================="
+      PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -c "\du"
+      echo " "
+      echo "================================="
+      echo " User Privileges On Schema"
+      echo "================================="
+      run_sql 1_user_info_schema.sql
+      print_done
+      ;;
+
+    # 2. PERFORMANCE -----------------------------------
+    21)
+      clear
+      echo "========================"
+      echo " Buffer Cache Hit Ratio "
+      echo "========================"
+      run_sql 2_cache_hit.sql
+      print_done
+      ;;
+
+    22)
+      clear
+      echo "======================="
+      echo " TOP 30 Queries "
+      echo "======================="
+      run_sql 2_top_query.sql
+      print_done
+      ;;
+
+    23)
+      clear
+      echo "=============================="
+      echo " Transaction Stat By Database "
+      echo "=============================="
+      run_sql 2_database_stat.sql
+      print_done
+      ;;
+
+    24)
+      clear
+      echo "======================="
+      echo " Unused Indexes "
+      echo "======================="
+      run_sql 2_unused_indexes.sql
+      print_done
+      ;;
+
+    25)
+      clear
+      echo "========================"
+      echo " HOT Tuple Update Ratio "
+      echo "========================"
+      run_sql 2_hot_update_ratio.sql
+      print_done
+      ;;
+
+    26)
+      clear
+      echo "======================="
+      echo " Index Bloat Estimate "
+      echo "======================="
+      run_sql 2_index_bloat.sql
+      print_done
+      ;;
+
+    27)
+      clear
+      echo "======================="
+      echo " Duplicate Indexes "
+      echo "======================="
+      run_sql 2_duplicate_indexes.sql
+      print_done
+      ;;
+
+    28)
+      clear
+      echo "============================="
+      echo " Foreign Keys Without Index "
+      echo "============================="
+      run_sql 2_fk_no_index.sql
+      print_done
+      ;;
+
+    29)
+      clear
+      echo "==========================="
+      echo " I/O Statistics (PG16+) "
+      echo "==========================="
+      run_sql 2_io_statistics.sql
+      print_done
+      ;;
+
+    # 3. SESSION ---------------------------------------
+    31)
+      clear
+      echo "======================"
+      echo " Session Count "
+      echo "======================"
+      run_sql 3_session_count.sql
+      echo " "
+      echo "======================"
+      echo " Total Session Count "
+      echo "======================"
+      run_sql 3_total_session.sql
+      echo " "
+      echo "======================"
+      echo " Active Sessions "
+      echo "======================"
+      run_sql 3_active_sessions.sql
+      print_done
+      ;;
+
+    32)
+      clear
+      echo "======================================="
+      echo " Long Running Queries / Transactions "
+      echo "======================================="
+      run_sql 3_long_running_sessions.sql
+      print_done
+      ;;
+
+    33)
+      clear
+      echo "======================"
+      echo " Blocking Sessions "
+      echo "======================"
+      run_sql 3_blocking_sessions.sql
+      print_done
+      ;;
+
+    34)
+      clear
+      echo "======================"
+      echo " Wait Event (Type)    "
+      echo "======================"
+      run_sql 3_wait_event.sql
+      print_done
+      ;;
+
+    35)
+      clear
+      echo "================================"
+      echo " Idle (in Transaction) Sessions "
+      echo "================================"
+      run_sql 3_idle_sessions.sql
+      print_done
+      ;;
+
+    36)
+      clear
+      echo "======================"
+      echo " Lock Wait Tree "
+      echo "======================"
+      run_sql 3_lock_tree.sql
+      print_done
+      ;;
+
+    37)
+      clear
+      echo "==============================="
+      echo " Prepared Transactions (2PC) "
+      echo "==============================="
+      run_sql 3_prepared_transactions.sql
+      print_done
+      ;;
+
+    38)
+      clear
+      echo "========================"
+      echo " Parallel Query Workers "
+      echo "========================"
+      run_sql 3_parallel_workers.sql
+      print_done
+      ;;
+
+    # 4. STORAGE ---------------------------------------
+    41)
+      clear
+      echo "======================="
+      echo " Table Size(Rows) Info "
+      echo "======================="
+      run_sql 4_table_size.sql
+      print_done
+      ;;
+
+    42)
+      clear
+      echo "======================="
+      echo " Index Size(Rows) Info "
+      echo "======================="
+      run_sql 4_index_size.sql
+      print_done
+      ;;
+
+    43)
+      clear
+      echo "======================"
+      echo " Tablespace Usage "
+      echo "======================"
+      run_sql 4_tablespace_usage.sql
+      print_done
+      ;;
+
+    44)
+      clear
+      echo "======================"
+      echo " Table Detail Info "
+      echo "======================"
+      if ! read_table_name; then
+        print_done
+        continue
+      fi
+      run_sql_for_table 4_table_detail_info.sql
+      print_done
+      ;;
+
+    45)
+      clear
+      echo "======================"
+      echo " Partition Table Info "
+      echo "======================"
+      run_sql 4_partition_table_info.sql
+      print_done
+      ;;
+
+    46)
+      clear
+      echo "======================================"
+      echo " Table Padding & Column Order Suggest "
+      echo "======================================"
+      if ! read_table_name; then
+        print_done
+        continue
+      fi
+      run_sql_for_table 4_table_padding_info.sql
+      print_done
+      ;;
+
+    47)
+      clear
+      echo "======================="
+      echo " Table Bloat Estimate "
+      echo "======================="
+      run_sql 4_table_bloat.sql
+      print_done
+      ;;
+
+    48)
+      clear
+      echo "======================"
+      echo " TOAST Size Info "
+      echo "======================"
+      run_sql 4_toast_size.sql
+      print_done
+      ;;
+
+    # 5. WAL & ARCHIVE ---------------------------------
+    51)
+      clear
+      echo "======================"
+      echo " Wal Status "
+      echo "======================"
+      run_sql 5_wal_status.sql
+      echo " "
+      echo "======================"
+      echo " Wal Creation Latency "
+      echo "======================"
+      run_sql 5_wal_creation_latency.sql
+      print_done
+      ;;
+
+    52)
+      clear
+      echo "======================"
+      echo " Archive Status "
+      echo "======================"
+      run_sql 5_archive_status.sql
+      print_done
+      ;;
+
+    53)
+      clear
+      echo "======================="
+      echo " Wal / Archive Setting "
+      echo "======================="
+      run_sql 5_wal_archive_setting.sql
+      print_done
+      ;;
+
+    54)
+      clear
+      echo "========================"
+      echo " Checkpoint Statistics "
+      echo "========================"
+      run_sql 5_checkpoint_stats.sql
+      print_done
+      ;;
+
+    55)
+      clear
+      echo "============================"
+      echo " WAL Generation Stat (14+) "
+      echo "============================"
+      run_sql 5_wal_generation.sql
+      print_done
+      ;;
+
+    # 6. VACUUM ----------------------------------------
+    61)
+      clear
+      echo "======================"
+      echo " Vacuuming Sessions "
+      echo "======================"
+      run_sql 6_vacuuming_sessions.sql
+      print_done
+      ;;
+
+    62)
+      clear
+      echo "======================"
+      echo " DeadTuple Ratio      "
+      echo "======================"
+      run_sql 6_deadtuple_ratio.sql
+      print_done
+      ;;
+
+    63)
+      clear
+      echo "========================"
+      echo " Vacuum Eligible Tables"
+      echo "========================"
+      run_sql 6_vacuum_eligible_tables.sql
+      print_done
+      ;;
+
+    64)
+      clear
+      echo "==========================="
+      echo " Vacuum Phase Info "
+      echo "==========================="
+      run_sql 6_vacuum_phase_info.sql
+      print_done
+      ;;
+
+    65)
+      clear
+      echo "==========================="
+      echo " Vacuum Freeze Warning "
+      echo "==========================="
+      run_sql 6_vacuum_freeze_warning.sql
+      print_done
+      ;;
+
+    66)
+      clear
+      echo "==========================="
+      echo " Vacuum Setting (Database) "
+      echo "==========================="
+      run_sql 6_database_vacuum_setting.sql
+      print_done
+      ;;
+
+    67)
+      clear
+      echo "============================"
+      echo " Vacuum Setting (Parameter) "
+      echo "============================"
+      run_sql 6_vacuum_setting_parameter.sql
+      print_done
+      ;;
+
+    68)
+      clear
+      echo "================================"
+      echo " Tables Not Vacuumed Recently "
+      echo "================================"
+      run_sql 6_autovacuum_stale_tables.sql
+      print_done
+      ;;
+
+    # 7. REPLICATION -----------------------------------
+    71)
+      clear
+      echo "============================="
+      echo " Replication Status (Primary)"
+      echo "============================="
+      run_sql 7_replication_status.sql
+      print_done
+      ;;
+
+    72)
+      clear
+      echo "============================="
+      echo " Replication Status (Standby)"
+      echo "============================="
+      run_sql 7_replication_status_slave.sql
+      print_done
+      ;;
+
+    73)
+      clear
+      echo "============================"
+      echo " Replication Slot Status "
+      echo "============================"
+      run_sql 7_replication_slot.sql
+      print_done
+      ;;
+
+    74)
+      clear
+      echo "============================="
+      echo " Logical Replication Status "
+      echo "============================="
+      run_sql 7_logical_replication.sql
+      print_done
+      ;;
+
+    # 8. URGENT ACTION -----------------------------------------
+    81)
+      clear
+      echo "======================"
+      echo " Session KILL "
+      echo "======================"
+      echo "Enter PID and press Enter :"
+      read PID
+      if [ -z "$PID" ] || ! [[ "$PID" =~ ^[0-9]+$ ]]; then
+        echo "Error: PID must be a number."
+        print_done
+        continue
+      fi
+
+      PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -v PID="$PID" -f "$MONITOR/sql/8_session_kill.sql"
+      print_done
+      ;;
+
+    82)
+      clear
+      echo "======================"
+      echo " Disable Autovacuum "
+      echo "======================"
+      if ! read_table_name; then
+        print_done
+        continue
+      fi
+      run_sql_for_table 8_disable_autovacuum.sql
+      echo "Autovacuum disabled for $FULL_TABLE_NAME"
+      print_done
+      ;;
+
+    83)
+      clear
+      echo "======================"
+      echo " Query Cancel "
+      echo "======================"
+      echo "Enter PID and press Enter :"
+      read PID
+      if [ -z "$PID" ] || ! [[ "$PID" =~ ^[0-9]+$ ]]; then
+        echo "Error: PID must be a number."
+        print_done
+        continue
+      fi
+
+      PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q -v PID="$PID" -f "$MONITOR/sql/8_cancel_query.sql"
+      print_done
+      ;;
+
+    84)
+      clear
+      echo "===================================="
+      echo " Kill Idle-in-Transaction Sessions "
+      echo "===================================="
+      echo "Terminate sessions idle in transaction longer than N minutes."
+      echo -n "Enter N minutes (default: 30): "
+      read IDLE_MIN
+      IDLE_MIN=${IDLE_MIN:-30}
+      if ! [[ "$IDLE_MIN" =~ ^[0-9]+$ ]]; then
+        echo "Error: minutes must be a number."
+        print_done
+        continue
+      fi
+
+      PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q \
+        -v MINUTES="$IDLE_MIN" -v MODE_KILL=false -f "$MONITOR/sql/8_kill_idle_transactions.sql"
+
+      echo -n "Terminate ALL sessions listed above?(Y/N): "
+      read kill_confirm
+      if [ "$kill_confirm" = "Y" -o "$kill_confirm" = "y" ]; then
+        PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -q \
+          -v MINUTES="$IDLE_MIN" -v MODE_KILL=true -f "$MONITOR/sql/8_kill_idle_transactions.sql"
+      else
+        echo "Cancelled. No session was terminated."
+      fi
+      print_done
+      ;;
+
+    # 9. CLOUD (RDS/AURORA) ----------------------------
+    91)
+      clear
+      echo "==============================="
+      echo " Cloud Env Info [RDS/Aurora] "
+      echo "==============================="
+      run_sql 9_cloud_env_info.sql
+      print_done
+      ;;
+
+    92)
+      clear
+      echo "====================================="
+      echo " Aurora Global DB Status [Aurora] "
+      echo "====================================="
+      run_sql 9_aurora_global_db.sql
+      print_done
+      ;;
+
+    93)
+      clear
+      echo "================================"
+      echo " Aurora Memory Usage [Aurora] "
+      echo "================================"
+      run_sql 9_aurora_memory_usage.sql
+      print_done
+      ;;
+
+    94)
+      clear
+      echo "===================================="
+      echo " DB Log Files (log_fdw) [RDS/Aurora]"
+      echo "===================================="
+      run_sql 9_cloud_log_files.sql
+      print_done
+      ;;
+
+    # 0. OTHER -----------------------------------------
+    s|S)
+      clear
+      echo "==============================="
+      echo " PostgreSQL Monitoring Report "
+      echo "==============================="
+      echo -n "Create Monitoring Report?(Y/N): "
+      read cre_mon_rpt
+      if [ "$cre_mon_rpt" = "Y" -o "$cre_mon_rpt" = "y" ]; then
+        filename=pg_monitor_$(date +%y%m%d%H%M.log)
+        {
+          echo "PostgreSQL Monitoring Report - $(date)"
+          echo "Host: $PG_HOST | Port: $PG_PORT | Database: $PG_DB"
+          echo "----------------------------------------"
+          echo "[Instance Info]";            run_sql 1_instance.sql
+          echo "[Modified Parameters]";      run_sql 1_modified_parameters.sql
+          echo "[Session Count]";            run_sql 3_session_count.sql
+          echo "[Total Sessions]";           run_sql 3_total_session.sql
+          echo "[Database Stat]";            run_sql 2_database_stat.sql
+          echo "[Cache Hit Ratio]";          run_sql 2_cache_hit.sql
+          echo "[Long Running]";             run_sql 3_long_running_sessions.sql
+          echo "[DeadTuple Ratio]";          run_sql 6_deadtuple_ratio.sql
+          echo "[Vacuum Eligible Tables]";   run_sql 6_vacuum_eligible_tables.sql
+          echo "[Vacuum Freeze Warning]";    run_sql 6_vacuum_freeze_warning.sql
+          echo "[Checkpoint Statistics]";    run_sql 5_checkpoint_stats.sql
+          echo "[Archive Status]";           run_sql 5_archive_status.sql
+          echo "[Replication Status]";       run_sql 7_replication_status.sql
+          echo "[Replication Slots]";        run_sql 7_replication_slot.sql
+          echo "[Tablespace Usage]";         run_sql 4_tablespace_usage.sql
+        } >> "$MONITOR/log/$filename"
+        echo
+        echo "Monitoring File Saved!"
+        echo "Filename: $MONITOR/log/$filename"
+        echo
+        print_done
+      fi
+      ;;
+
+    x|X|q|Q)
+      clear
+      echo "Good bye..."
+      echo
+      exit 0
+      ;;
+
+    *)
+      echo
+      echo "You chose an invalid option."
+      echo "Try Again..."
+      sleep 1
+      ;;
+  esac
+done
