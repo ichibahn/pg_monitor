@@ -73,6 +73,16 @@ This is the whole tool — the screen you see the moment you connect:
 - Works on **vanilla PostgreSQL, Amazon RDS for PostgreSQL, and Amazon Aurora PostgreSQL** — the environment is auto-detected and shown in the header (`Environment:` above), and menu items branch accordingly (e.g. replication status on Aurora automatically shows `aurora_replica_status()`).
 - Verified against **PostgreSQL 13–18** (tested on 14/15/16/17 containers + RDS/Aurora 18.3, writers and replicas).
 
+## Quick Start — 3 commands, copy & run
+
+```bash
+sudo apt install postgresql-client                                  # once. RHEL/Rocky: sudo dnf install postgresql
+git clone https://github.com/ichibahn/pg_monitor.git ~/pg_monitor
+bash ~/pg_monitor/monitor
+```
+
+Type your host/port/database/user/password at the prompt — the menu above appears. That's the entire setup.
+
 ## Requirements
 
 | Component | Requirement |
