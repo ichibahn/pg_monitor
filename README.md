@@ -148,6 +148,8 @@ A user with the `pg_monitor` role (PG10+) can run every read-only item; `8x` act
 
 ## Menu Reference
 
+Verdict-style columns (items **25, 52, 65, 73**) share one uniform format — **`LEVEL: condition (action)`** — with four levels: `OK` (healthy), `WARN` (needs attention), `CRIT` (act now), `SKIP` (not enough data / not applicable). The condition always states the threshold that was hit, and the parentheses tell you what to do.
+
 ### 1. GENERAL
 | # | Item | Notes |
 |---|---|---|
@@ -198,7 +200,7 @@ A user with the `pg_monitor` role (PG10+) can run every read-only item; `8x` act
 | # | Item | Notes |
 |---|---|---|
 | 51 | Wal Status | WAL segment files + creation latency (Aurora: guided message) |
-| 52 | Archive Status | `pg_stat_archiver` health |
+| 52 | Archive Status | `pg_stat_archiver` health with verdict: `OK` running / `WARN` last failure newer than last success / `CRIT` never succeeded / `SKIP` no archives yet |
 | 53 | Wal / Archive Setting | related parameters |
 | 54 | Checkpoint Statistics | `pg_stat_checkpointer` (PG17+) / `pg_stat_bgwriter` (≤16) |
 | 55 | WAL Generation Stat | `pg_stat_wal` (PG14+; Aurora: guided message) |
@@ -210,7 +212,7 @@ A user with the `pg_monitor` role (PG10+) can run every read-only item; `8x` act
 | 62 | DeadTuple Ratio | top 50 by dead tuples |
 | 63 | Vacuum Eligible Tables | threshold math incl. per-table reloptions |
 | 64 | Vacuum Phase Info | `pg_stat_progress_vacuum` |
-| 65 | Vacuum Freeze Warning | relfrozenxid age alerts |
+| 65 | Vacuum Freeze Warning | relfrozenxid age verdict: `CRIT` at ≥ 100% of `autovacuum_freeze_max_age` (run VACUUM FREEZE) / `WARN` at ≥ 50% / `OK` below |
 | 66 | Vacuum Setting (Database) | freeze age / eager-mode probability |
 | 67 | Vacuum Setting (Parameter) | autovacuum parameters |
 | 68 | Tables Not Vacuumed Recently | 7+ days without (auto)vacuum/analyze |
@@ -220,7 +222,7 @@ A user with the `pg_monitor` role (PG10+) can run every read-only item; `8x` act
 |---|---|---|
 | 71 | Replication Status (Primary) | `pg_stat_replication`; **on Aurora auto-switches to `aurora_replica_status()`** |
 | 72 | Replication Status (Standby) | `pg_stat_wal_receiver`; **on Aurora auto-switches to `aurora_replica_status()`** |
-| 73 | Replication Slot Status | slot health, retained WAL, NULL-safe for physical slots |
+| 73 | Replication Slot Status | slot health, retained WAL, NULL-safe for physical slots; verdict: `CRIT` wal_status lost/unreserved / `WARN` inactive slot or extended / `OK` reserved |
 | 74 | Logical Replication Status | publications / subscriptions / workers |
 
 ### 8. URGENT ACTION (CAUTION!)

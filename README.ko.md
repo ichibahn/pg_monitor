@@ -164,6 +164,8 @@ PostgreSQL Major Version: 17 (RDS)
 
 ## 5. 각 항목 설명
 
+판정 컬럼이 있는 항목(**25, 52, 65, 73**)은 전부 **`LEVEL: 조건 (조치)`** 통일 포맷을 씁니다 — 레벨 4단계: `OK`(정상) / `WARN`(주의) / `CRIT`(즉시 조치) / `SKIP`(데이터 부족·해당 없음). 조건에는 걸린 임계치가, 괄호에는 취할 조치가 명시됩니다.
+
 ### 1. GENERAL
 - 11) Cluster/Instance Info : 접속한 PostgreSQL 정보 (버전/가동시간/인코딩/TZ/Primary·Standby 역할/최대 XID age)
 - 12) Modified Parameter : 기본값 대비 변경된 파라미터 (pending_restart 포함)
@@ -204,7 +206,7 @@ PostgreSQL Major Version: 17 (RDS)
 
 ### 5. WAL & ARCHIVE
 - 51) Wal Status : wal 파일 상태/생성 지연 (Aurora는 안내 메시지)
-- 52) Archive Status : archive 상태/정보
+- 52) Archive Status : archive 상태/정보 + 판정 — `OK` 정상 아카이빙 / `WARN` 마지막 실패가 마지막 성공보다 최신 / `CRIT` 성공 이력 없이 실패만 존재 / `SKIP` 아카이브 이력 없음(archive_mode off 등)
 - 53) Wal / Archive Setting : wal, archive 관련 파라미터
 - 54) Checkpoint Statistics : 체크포인트 통계 (PG17+ pg_stat_checkpointer / 이하 pg_stat_bgwriter 자동 분기)
 - 55) WAL Generation Stat : WAL 생성량 (PG14+ pg_stat_wal; Aurora는 안내 메시지)
@@ -214,7 +216,7 @@ PostgreSQL Major Version: 17 (RDS)
 - 62) DeadTuple Ratio : dead tuple 상위 50개 테이블
 - 63) Vacuum Eligible Tables : 현재 설정 기준 vacuum 대상 테이블 (테이블별 reloption 반영)
 - 64) Vacuum Phase Info : vacuum 진행률
-- 65) Vacuum Freeze Warning : relfrozenxid age 경보 (eager mode 대상)
+- 65) Vacuum Freeze Warning : relfrozenxid age 판정 — `CRIT` autovacuum_freeze_max_age의 100% 이상(즉시 VACUUM FREEZE) / `WARN` 50% 이상(vacuum window 계획) / `OK` 50% 미만
 - 66) Vacuum Setting (Database) : database 별 vacuum 세팅
 - 67) Vacuum Setting (Parameter) : vacuum 파라미터
 - 68) Tables Not Vacuumed Recently : 7일+ (auto)vacuum/analyze 미수행 테이블
@@ -222,7 +224,7 @@ PostgreSQL Major Version: 17 (RDS)
 ### 7. REPLICATION
 - 71) Replication Status (Primary) : 복제 상태 — **Aurora 접속 시 aurora_replica_status()로 자동 전환**
 - 72) Replication Status (Standby) : standby 수신 상태 — **Aurora 접속 시 자동 전환 + 접속 인스턴스 식별**
-- 73) Replication Slot Status : replication slot 상태 (physical slot NULL 안전 처리)
+- 73) Replication Slot Status : replication slot 상태 (physical slot NULL 안전 처리) + 판정 — `CRIT` wal_status lost/unreserved(필요 WAL 제거됨) / `WARN` 비활성 슬롯 또는 extended / `OK` reserved
 - 74) Logical Replication Status : publication / subscription / worker 상태
 
 ### 8. URGENT ACTION (주의!)

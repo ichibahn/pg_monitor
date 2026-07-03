@@ -18,10 +18,10 @@ SELECT
         CASE WHEN pg_is_in_recovery() THEN pg_last_wal_replay_lsn() ELSE pg_current_wal_lsn() END,
         COALESCE(confirmed_flush_lsn, restart_lsn))) AS retained_wal,
     CASE
-        WHEN wal_status IN ('unreserved', 'lost') THEN 'DANGER: required WAL is being removed'
-        WHEN NOT active THEN 'WARNING: inactive slot keeps retaining WAL'
-        WHEN wal_status = 'extended' THEN 'WARNING: retained WAL exceeds max_wal_size'
-        ELSE 'OK'
+        WHEN wal_status IN ('unreserved', 'lost') THEN 'CRIT: wal_status=' || wal_status || ' (required WAL removed - recreate the slot/replica)'
+        WHEN NOT active THEN 'WARN: slot inactive (it keeps retaining WAL - drop if unused)'
+        WHEN wal_status = 'extended' THEN 'WARN: wal_status=extended (retained WAL exceeds max_wal_size)'
+        ELSE 'OK: wal_status=reserved'
     END AS status_check
 FROM pg_replication_slots
 ORDER BY slot_name;

@@ -4,10 +4,10 @@ SELECT n.nspname AS schema_name,
        c.relfrozenxid AS frozen_xid, 
        age(c.relfrozenxid) AS xid_age,
        current_setting('autovacuum_freeze_max_age')::int AS autovacuum_freeze_max_age,
-       CASE 
-           WHEN age(c.relfrozenxid) >= current_setting('autovacuum_freeze_max_age')::int THEN 'Needs VACUUM FREEZE'
-           WHEN age(c.relfrozenxid) >= current_setting('autovacuum_freeze_max_age')::int / 2 THEN 'Warning'
-           ELSE 'OK'
+       CASE
+           WHEN age(c.relfrozenxid) >= current_setting('autovacuum_freeze_max_age')::int THEN 'CRIT: xid_age >= freeze_max_age (run VACUUM FREEZE now)'
+           WHEN age(c.relfrozenxid) >= current_setting('autovacuum_freeze_max_age')::int / 2 THEN 'WARN: xid_age >= 50% of freeze_max_age (plan a vacuum window)'
+           ELSE 'OK: xid_age < 50% of freeze_max_age'
        END AS freeze_status
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
