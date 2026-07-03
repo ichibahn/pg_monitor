@@ -61,10 +61,10 @@ This is the whole tool — the screen you see the moment you connect:
  ---------------------------------------------------------------------------------------
  9. CLOUD (RDS/AURORA ONLY)                 | 0. OTHER
  ------------------------------------------ + ------------------------------------------
-  91 - Cloud Env Info        [RDS/Aurora]   |  S - Save Report to File
+  91 - Cloud Env Info          [RDS/Aurora] |  S - Save Report to File
   92 - Aurora Global DB Status [Aurora]     |  X or Q - EXIT
-  93 - Aurora Memory Usage   [Aurora]       |
-  94 - DB Log Files (log_fdw) [RDS/Aurora]  |
+  93 - Aurora Memory Usage     [Aurora]     |
+  94 - DB Log Files (log_fdw)  [RDS/Aurora] |
  ---------------------------------------------------------------------------------------
 
  Choose the Number or Command:

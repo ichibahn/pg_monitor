@@ -213,10 +213,10 @@ while true; do
   echo " ---------------------------------------------------------------------------------------"
   echo " 9. CLOUD (RDS/AURORA ONLY)                 | 0. OTHER                                  "
   echo " ------------------------------------------ + ------------------------------------------"
-  echo "  91 - Cloud Env Info        [RDS/Aurora]   |  S - Save Report to File                  "
+  echo "  91 - Cloud Env Info          [RDS/Aurora] |  S - Save Report to File                  "
   echo "  92 - Aurora Global DB Status [Aurora]     |  X or Q - EXIT                            "
-  echo "  93 - Aurora Memory Usage   [Aurora]       |                                           "
-  echo "  94 - DB Log Files (log_fdw) [RDS/Aurora]  |                                           "
+  echo "  93 - Aurora Memory Usage     [Aurora]     |                                           "
+  echo "  94 - DB Log Files (log_fdw)  [RDS/Aurora] |                                           "
   echo " ---------------------------------------------------------------------------------------"
   echo
   echo -n " Choose the Number or Command: "
