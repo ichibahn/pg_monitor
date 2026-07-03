@@ -3,18 +3,74 @@
 DBA/SRE를 위한 대화형 메뉴 방식 PostgreSQL 모니터링·트러블슈팅 셸입니다.
 bash 스크립트 하나 + 실전 검증된 SQL 57개. 에이전트도 데몬도 없이 `psql`만 있으면 됩니다.
 
+*[English version](README.md)*
+
+## 왜 pg_monitor 인가?
+
+PostgreSQL DBA라면 누구나 자기만의 진단 쿼리 모음을 갖고 다닙니다 — 그리고 장애가 터진 새벽에는 "그 bloat 쿼리가 어디 있더라", "락 트리 쿼리가 뭐였지" 하며 옛 메모를 뒤지게 됩니다. **pg_monitor는 그 쿼리 툴박스 전체를 번호 메뉴 하나에 담았습니다.** 접속하고, 번호를 누르고, 결과를 읽으면 끝 — 세션, 락, vacuum, WAL, 복제, bloat, 클라우드 전용 항목, 긴급조치까지. 카탈로그 이름을 외울 필요도, 쿼리 파일을 들고 다닐 필요도 없습니다. 아래 메뉴만 읽을 수 있으면 트러블슈팅을 시작할 수 있습니다.
+
+이것이 도구의 전부입니다 — 접속하는 순간 보이는 화면:
+
 ```
 ================================
  PostgreSQL Monitor Ver1.1.0
 ================================
-  PostgreSQL Version: 17 | Environment: Aurora
-  Host: mydb.cluster-xxxx.us-east-1.rds.amazonaws.com | Port: 5432 | Database: postgres | User: postgres
+  PostgreSQL Version: 18 | Environment: RDS
+  Host: ********** | Port: **** | Database: ******** | User: ********
  ---------------------------------------------------------------------------------------
  1. GENERAL                                 | 2. PERFORMANCE METRICS
- ...
+ ------------------------------------------ + ------------------------------------------
+  11 - Cluster/Instance Info                |  21 - Buffer Cache Hit Ratio
+  12 - Modified Parameter                   |  22 - TOP 30 Queries (pg_stat_statements)
+  13 - Database Info                        |  23 - Transaction Stat By Database
+  14 - User Privilege (Database)            |  24 - Unused Indexes
+  15 - User Privilege (Schema)              |  25 - HOT Update Ratio
+                                            |  26 - Index Bloat Estimate
+                                            |  27 - Duplicate Indexes
+                                            |  28 - Foreign Keys Without Index
+                                            |  29 - I/O Statistics (PG16+)
+ ---------------------------------------------------------------------------------------
+ 3. SESSION / QUERY ACTIVITY                | 4. SEGMENT & OBJECT INFO
+ ------------------------------------------ + ------------------------------------------
+  31 - Active Sessions                      |  41 - Table Size/Rows
+  32 - Long Running Queries/Transactions    |  42 - Index Size/Rows
+  33 - Blocking / Blocked Sessions          |  43 - Tablespace Size
+  34 - Wait Event (Type)                    |  44 - Table Detail Info
+  35 - Idle (in Transaction) Sessions       |  45 - Partition Table Info
+  36 - Lock Wait Tree                       |  46 - Table Padding Info
+  37 - Prepared Transactions (2PC)          |  47 - Table Bloat Estimate
+  38 - Parallel Query Workers               |  48 - TOAST Size Info
+ ---------------------------------------------------------------------------------------
+ 5. WAL & ARCHIVE                           | 6. VACUUM
+ ------------------------------------------ + ------------------------------------------
+  51 - Wal Status                           |  61 - Vacuuming Sessions
+  52 - Archive Status                       |  62 - DeadTuple Ratio
+  53 - Wal / Archive Setting (Parameter)    |  63 - Vacuum Eligible Tables
+  54 - Checkpoint Statistics                |  64 - Vacuum Phase Info
+  55 - WAL Generation Stat (PG14+)          |  65 - Vacuum Freeze Warning
+                                            |  66 - Vacuum Setting (Database)
+                                            |  67 - Vacuum Setting (Parameter)
+                                            |  68 - Tables Not Vacuumed Recently
+ ---------------------------------------------------------------------------------------
+ 7. REPLICATION                             | 8. URGENT ACTION (CAUTION!)
+ ------------------------------------------ + ------------------------------------------
+  71 - Replication Status (Primary)         |  81 - Session KILL (terminate)
+  72 - Replication Status (Standby)         |  82 - Disable Autovacuum (Table)
+  73 - Replication Slot Status              |  83 - Query Cancel (safer than KILL)
+  74 - Logical Replication Status           |  84 - Kill Idle-in-Transaction Sessions
+ ---------------------------------------------------------------------------------------
+ 9. CLOUD (RDS/AURORA ONLY)                 | 0. OTHER
+ ------------------------------------------ + ------------------------------------------
+  91 - Cloud Env Info        [RDS/Aurora]   |  S - Save Report to File
+  92 - Aurora Global DB Status [Aurora]     |  X or Q - EXIT
+  93 - Aurora Memory Usage   [Aurora]       |
+  94 - DB Log Files (log_fdw) [RDS/Aurora]  |
+ ---------------------------------------------------------------------------------------
+
+ Choose the Number or Command:
 ```
 
-- **vanilla PostgreSQL / Amazon RDS / Amazon Aurora PostgreSQL** 모두 지원 — 접속 시 환경을 자동 감지해 헤더에 표시하고, 항목별로 자동 분기합니다 (예: Aurora에서 복제 상태 조회 시 `aurora_replica_status()`를 자동 실행).
+- **vanilla PostgreSQL / Amazon RDS / Amazon Aurora PostgreSQL** 모두 지원 — 접속 시 환경을 자동 감지해 헤더에 표시하고(위 `Environment:`), 항목별로 자동 분기합니다 (예: Aurora에서 복제 상태 조회 시 `aurora_replica_status()`를 자동 실행).
 - **PostgreSQL 13~18** 검증 완료 (14/15/16/17 컨테이너 + RDS/Aurora 18.3, writer·replica 전부 실측).
 
 ## 1. 요구사항

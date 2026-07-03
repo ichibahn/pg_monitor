@@ -3,18 +3,74 @@
 An interactive, menu-driven PostgreSQL monitoring & troubleshooting shell for DBAs and SREs.
 One bash script + 57 battle-tested SQL checks. No agents, no daemons — just `psql`.
 
+*[한국어 문서 (Korean version)](README.ko.md)*
+
+## Why pg_monitor?
+
+Every PostgreSQL DBA carries a private stash of diagnostic queries — and mid-incident, at 3 AM, you end up digging through old notes for "that bloat query" or "the lock tree one". **pg_monitor packs that entire toolbox behind one numbered menu.** Connect, type a number, read the answer: sessions, locks, vacuum, WAL, replication, bloat, cloud specifics, and urgent actions — with nothing to memorize and no query files to carry. If you can read the menu below, you can troubleshoot.
+
+This is the whole tool — the screen you see the moment you connect:
+
 ```
 ================================
  PostgreSQL Monitor Ver1.1.0
 ================================
-  PostgreSQL Version: 17 | Environment: Aurora
-  Host: mydb.cluster-xxxx.us-east-1.rds.amazonaws.com | Port: 5432 | Database: postgres | User: postgres
+  PostgreSQL Version: 18 | Environment: RDS
+  Host: ********** | Port: **** | Database: ******** | User: ********
  ---------------------------------------------------------------------------------------
  1. GENERAL                                 | 2. PERFORMANCE METRICS
- ...
+ ------------------------------------------ + ------------------------------------------
+  11 - Cluster/Instance Info                |  21 - Buffer Cache Hit Ratio
+  12 - Modified Parameter                   |  22 - TOP 30 Queries (pg_stat_statements)
+  13 - Database Info                        |  23 - Transaction Stat By Database
+  14 - User Privilege (Database)            |  24 - Unused Indexes
+  15 - User Privilege (Schema)              |  25 - HOT Update Ratio
+                                            |  26 - Index Bloat Estimate
+                                            |  27 - Duplicate Indexes
+                                            |  28 - Foreign Keys Without Index
+                                            |  29 - I/O Statistics (PG16+)
+ ---------------------------------------------------------------------------------------
+ 3. SESSION / QUERY ACTIVITY                | 4. SEGMENT & OBJECT INFO
+ ------------------------------------------ + ------------------------------------------
+  31 - Active Sessions                      |  41 - Table Size/Rows
+  32 - Long Running Queries/Transactions    |  42 - Index Size/Rows
+  33 - Blocking / Blocked Sessions          |  43 - Tablespace Size
+  34 - Wait Event (Type)                    |  44 - Table Detail Info
+  35 - Idle (in Transaction) Sessions       |  45 - Partition Table Info
+  36 - Lock Wait Tree                       |  46 - Table Padding Info
+  37 - Prepared Transactions (2PC)          |  47 - Table Bloat Estimate
+  38 - Parallel Query Workers               |  48 - TOAST Size Info
+ ---------------------------------------------------------------------------------------
+ 5. WAL & ARCHIVE                           | 6. VACUUM
+ ------------------------------------------ + ------------------------------------------
+  51 - Wal Status                           |  61 - Vacuuming Sessions
+  52 - Archive Status                       |  62 - DeadTuple Ratio
+  53 - Wal / Archive Setting (Parameter)    |  63 - Vacuum Eligible Tables
+  54 - Checkpoint Statistics                |  64 - Vacuum Phase Info
+  55 - WAL Generation Stat (PG14+)          |  65 - Vacuum Freeze Warning
+                                            |  66 - Vacuum Setting (Database)
+                                            |  67 - Vacuum Setting (Parameter)
+                                            |  68 - Tables Not Vacuumed Recently
+ ---------------------------------------------------------------------------------------
+ 7. REPLICATION                             | 8. URGENT ACTION (CAUTION!)
+ ------------------------------------------ + ------------------------------------------
+  71 - Replication Status (Primary)         |  81 - Session KILL (terminate)
+  72 - Replication Status (Standby)         |  82 - Disable Autovacuum (Table)
+  73 - Replication Slot Status              |  83 - Query Cancel (safer than KILL)
+  74 - Logical Replication Status           |  84 - Kill Idle-in-Transaction Sessions
+ ---------------------------------------------------------------------------------------
+ 9. CLOUD (RDS/AURORA ONLY)                 | 0. OTHER
+ ------------------------------------------ + ------------------------------------------
+  91 - Cloud Env Info        [RDS/Aurora]   |  S - Save Report to File
+  92 - Aurora Global DB Status [Aurora]     |  X or Q - EXIT
+  93 - Aurora Memory Usage   [Aurora]       |
+  94 - DB Log Files (log_fdw) [RDS/Aurora]  |
+ ---------------------------------------------------------------------------------------
+
+ Choose the Number or Command:
 ```
 
-- Works on **vanilla PostgreSQL, Amazon RDS for PostgreSQL, and Amazon Aurora PostgreSQL** — the environment is auto-detected and shown in the header, and menu items branch accordingly (e.g. replication status on Aurora automatically shows `aurora_replica_status()`).
+- Works on **vanilla PostgreSQL, Amazon RDS for PostgreSQL, and Amazon Aurora PostgreSQL** — the environment is auto-detected and shown in the header (`Environment:` above), and menu items branch accordingly (e.g. replication status on Aurora automatically shows `aurora_replica_status()`).
 - Verified against **PostgreSQL 13–18** (tested on 14/15/16/17 containers + RDS/Aurora 18.3, writers and replicas).
 
 ## Requirements
